@@ -1,5 +1,32 @@
 # Vibe Coder Assessment
 
+## What's in this repo
+
+Two full-stack mini apps built as part of a take-home assessment. Both are live on Vercel with real persistent storage via Turso (hosted SQLite). Source code is split into two independent Next.js projects, each deployable on its own.
+
+## Tech Stack
+
+- **Framework:** Next.js 14 (App Router) + TypeScript
+- **Styling:** Tailwind CSS (mobile-first)
+- **Database:** Turso (libSQL / hosted SQLite) — data persists across deploys and serverless cold starts
+- **Deployment:** Vercel
+- **AI tooling:** Built with Claude Code
+
+## Live Apps
+
+| App | URL | Source |
+|-----|-----|--------|
+| Q4 — Guest Refund Form | https://property-tools-six.vercel.app | [q4-refund-form/](./q4-refund-form/) |
+| Q5 — Maintenance Issue Logger | https://property-tools-l6gi.vercel.app | [q5-maintenance-logger/](./q5-maintenance-logger/) |
+
+### Q4 — Guest Refund Request Form
+A mobile-responsive form for guests to submit refund requests. Validates all fields, shows a warning banner when the booking is older than 90 days, and displays a full summary of the submitted data on success. Every submission is stored in Turso and survives page refreshes.
+
+### Q5 — Maintenance Issue Logger
+A two-view internal tool. The Submit tab generates a unique ticket number (MNT-0001 format) on every submission. The Dashboard tab shows all logged issues in a table with urgency color-coding (green/yellow/red), per-row status dropdowns that persist on refresh via a PATCH API, and filters by property and urgency.
+
+---
+
 ## Part A — Written Answers
 
 ### Q1 — Architecture & Decision-Making
@@ -54,3 +81,5 @@ I'd build this with a CRM webhook + a small orchestration layer rather than plug
 |-----|----------|--------|
 | Q4 — Guest Refund Form | https://property-tools-six.vercel.app | [q4-refund-form/](./q4-refund-form/) |
 | Q5 — Maintenance Logger | https://property-tools-l6gi.vercel.app | [q5-maintenance-logger/](./q5-maintenance-logger/) |
+
+See the top of this README for app descriptions and tech stack.
