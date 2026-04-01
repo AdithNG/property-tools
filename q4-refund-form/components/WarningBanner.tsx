@@ -4,10 +4,8 @@ export default function WarningBanner() {
       <div className="flex items-start gap-2">
         <span className="text-yellow-500 text-lg">⚠️</span>
         <div>
-          <p className="font-semibold">Booking Over 90 Days Ago</p>
           <p className="text-sm mt-1">
-            Your booking date is more than 90 days ago. Refund eligibility may be limited.
-            Please include as much detail as possible to support your request.
+            Your booking is outside the standard refund window. Your request will be reviewed on a case-by-case basis.
           </p>
         </div>
       </div>

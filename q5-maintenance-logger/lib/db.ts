@@ -1,26 +1,24 @@
-import Database from 'better-sqlite3';
+import { createClient, type Client } from '@libsql/client';
 import path from 'path';
 import fs from 'fs';
 
-let _db: Database.Database | null = null;
-
-export function getDb(): Database.Database {
-  if (_db) return _db;
-
-  const DB_PATH = process.env.NODE_ENV === 'production'
-    ? '/tmp/db.sqlite'
-    : path.join(process.cwd(), 'data', 'db.sqlite');
-
-  if (process.env.NODE_ENV !== 'production') {
-    const dir = path.dirname(DB_PATH);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+export function getDb(): Client {
+  if (process.env.TURSO_DATABASE_URL) {
+    return createClient({
+      url: process.env.TURSO_DATABASE_URL,
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    });
   }
 
-  _db = new Database(DB_PATH);
+  // Local dev: file-based SQLite via libsql
+  const dbDir = path.join(process.cwd(), 'data');
+  if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+  const dbPath = path.join(dbDir, 'db.sqlite');
+  return createClient({ url: `file:${dbPath}` });
+}
 
-  _db.exec(`
+export async function ensureSchema(db: Client): Promise<void> {
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS issues (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       ticket_number TEXT NOT NULL UNIQUE,
@@ -31,8 +29,6 @@ export function getDb(): Database.Database {
       photo_name TEXT,
       status TEXT NOT NULL DEFAULT 'Open',
       created_at TEXT DEFAULT (datetime('now'))
-    );
+    )
   `);
-
-  return _db;
 }

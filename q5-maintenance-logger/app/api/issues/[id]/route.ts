@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDb, ensureSchema } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,15 +23,32 @@ export async function PATCH(
     }
 
     const db = getDb();
-    const existing = db.prepare('SELECT id FROM issues WHERE id = ?').get(id);
-    if (!existing) {
+    await ensureSchema(db);
+
+    const existing = await db.execute({ sql: 'SELECT id FROM issues WHERE id = ?', args: [id] });
+    if (existing.rows.length === 0) {
       return NextResponse.json({ error: 'Issue not found' }, { status: 404 });
     }
 
-    db.prepare('UPDATE issues SET status = ? WHERE id = ?').run(status, id);
-    const updated = db.prepare('SELECT * FROM issues WHERE id = ?').get(id);
+    await db.execute({ sql: 'UPDATE issues SET status = ? WHERE id = ?', args: [status, id] });
 
-    return NextResponse.json({ success: true, data: updated });
+    const updated = await db.execute({ sql: 'SELECT * FROM issues WHERE id = ?', args: [id] });
+    const row = updated.rows[0] as Record<string, unknown>;
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: Number(row.id),
+        ticket_number: String(row.ticket_number),
+        property_name: String(row.property_name),
+        category: String(row.category),
+        urgency: String(row.urgency),
+        description: String(row.description),
+        photo_name: row.photo_name != null ? String(row.photo_name) : null,
+        status: String(row.status),
+        created_at: String(row.created_at),
+      },
+    });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

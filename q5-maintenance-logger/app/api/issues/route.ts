@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDb, ensureSchema } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,32 +15,40 @@ interface Issue {
   created_at: string;
 }
 
+function rowToIssue(row: Record<string, unknown>): Issue {
+  return {
+    id: Number(row.id),
+    ticket_number: String(row.ticket_number),
+    property_name: String(row.property_name),
+    category: String(row.category),
+    urgency: String(row.urgency),
+    description: String(row.description),
+    photo_name: row.photo_name != null ? String(row.photo_name) : null,
+    status: String(row.status),
+    created_at: String(row.created_at),
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const property = searchParams.get('property');
     const urgency = searchParams.get('urgency');
 
-    let query = 'SELECT * FROM issues';
-    const params: string[] = [];
     const conditions: string[] = [];
+    const args: string[] = [];
 
-    if (property) {
-      conditions.push('property_name = ?');
-      params.push(property);
-    }
-    if (urgency) {
-      conditions.push('urgency = ?');
-      params.push(urgency);
-    }
+    if (property) { conditions.push('property_name = ?'); args.push(property); }
+    if (urgency) { conditions.push('urgency = ?'); args.push(urgency); }
 
-    if (conditions.length > 0) {
-      query += ' WHERE ' + conditions.join(' AND ');
-    }
-    query += ' ORDER BY created_at DESC';
+    const where = conditions.length > 0 ? ' WHERE ' + conditions.join(' AND ') : '';
+    const sql = `SELECT * FROM issues${where} ORDER BY created_at DESC`;
 
     const db = getDb();
-    const issues = db.prepare(query).all(...params) as Issue[];
+    await ensureSchema(db);
+    const result = await db.execute({ sql, args });
+    const issues = result.rows.map(r => rowToIssue(r as Record<string, unknown>));
+
     return NextResponse.json({ issues });
   } catch {
     return NextResponse.json({ error: 'Failed to fetch issues' }, { status: 500 });
@@ -70,20 +78,26 @@ export async function POST(request: NextRequest) {
     if (!VALID_URGENCIES.includes(urgency)) return NextResponse.json({ error: 'Invalid urgency' }, { status: 400 });
 
     const db = getDb();
-    const count = db.prepare('SELECT COUNT(*) as cnt FROM issues').get() as { cnt: number };
-    const ticket_number = `MNT-${String(count.cnt + 1).padStart(4, '0')}`;
+    await ensureSchema(db);
+
+    const countResult = await db.execute('SELECT COUNT(*) as cnt FROM issues');
+    const cnt = Number(countResult.rows[0].cnt);
+    const ticket_number = `MNT-${String(cnt + 1).padStart(4, '0')}`;
 
     const photo_name = photo && photo.size > 0 ? photo.name : null;
 
-    const stmt = db.prepare(`
-      INSERT INTO issues (ticket_number, property_name, category, urgency, description, photo_name)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    const result = stmt.run(ticket_number, property_name, category, urgency, description, photo_name);
+    const insertResult = await db.execute({
+      sql: `INSERT INTO issues (ticket_number, property_name, category, urgency, description, photo_name)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [ticket_number, property_name, category, urgency, description, photo_name],
+    });
 
-    const inserted = db.prepare('SELECT * FROM issues WHERE id = ?').get(result.lastInsertRowid) as Issue;
+    const selectResult = await db.execute({
+      sql: 'SELECT * FROM issues WHERE id = ?',
+      args: [Number(insertResult.lastInsertRowid)],
+    });
 
-    return NextResponse.json({ success: true, data: inserted }, { status: 201 });
+    return NextResponse.json({ success: true, data: rowToIssue(selectResult.rows[0] as Record<string, unknown>) }, { status: 201 });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

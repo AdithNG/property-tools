@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDb, ensureSchema } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,23 +27,31 @@ export async function POST(request: NextRequest) {
     const file_name = file && file.size > 0 ? file.name : null;
 
     const db = getDb();
-    const stmt = db.prepare(`
-      INSERT INTO refund_requests (full_name, email, booking_reference, booking_date, refund_reason, additional_details, file_name)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
+    await ensureSchema(db);
 
-    const result = stmt.run(full_name, email, booking_reference, booking_date, refund_reason, additional_details || null, file_name);
+    const insertResult = await db.execute({
+      sql: `INSERT INTO refund_requests
+              (full_name, email, booking_reference, booking_date, refund_reason, additional_details, file_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [full_name, email, booking_reference, booking_date, refund_reason, additional_details || null, file_name],
+    });
 
-    const inserted = db.prepare('SELECT * FROM refund_requests WHERE id = ?').get(result.lastInsertRowid) as {
-      id: number;
-      full_name: string;
-      email: string;
-      booking_reference: string;
-      booking_date: string;
-      refund_reason: string;
-      additional_details: string | null;
-      file_name: string | null;
-      created_at: string;
+    const selectResult = await db.execute({
+      sql: 'SELECT * FROM refund_requests WHERE id = ?',
+      args: [Number(insertResult.lastInsertRowid)],
+    });
+
+    const row = selectResult.rows[0];
+    const inserted = {
+      id: Number(row.id),
+      full_name: String(row.full_name),
+      email: String(row.email),
+      booking_reference: String(row.booking_reference),
+      booking_date: String(row.booking_date),
+      refund_reason: String(row.refund_reason),
+      additional_details: row.additional_details != null ? String(row.additional_details) : null,
+      file_name: row.file_name != null ? String(row.file_name) : null,
+      created_at: String(row.created_at),
     };
 
     return NextResponse.json({ success: true, data: inserted }, { status: 201 });
